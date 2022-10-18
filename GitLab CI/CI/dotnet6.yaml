@@ -1,0 +1,59 @@
+stages:
+  - build
+  - test
+  - publish
+
+build:
+  stage: build
+  image: dotnet/sdk:6.0
+  before_script:
+    - dotnet nuget disable source nuget.org
+    - dotnet nuget add source http://source.com.br/repository/nuget --name nuget-repository
+  script:
+    - dotnet build
+
+unit-test:
+  stage: test
+  image: dotnet/sdk:6.0
+  needs:
+    - build
+  before_script:
+    - dotnet nuget disable source nuget.org
+    - dotnet nuget add source http://source.com.br/repository/nuget --name nuget-repository
+  script:
+    - dotnet test
+
+sonarqube:
+  stage: test
+  image: dotnet/sdk:6.0-sonarqube
+  needs:
+    - build
+  variables:
+    SONAR_USER_HOME: "${CI_PROJECT_DIR}/.sonar"
+    GIT_DEPTH: 0
+  before_script:
+    - dotnet nuget disable source nuget.org
+    - dotnet nuget add source http://source.com.br/repository/nuget --name nuget-repository
+  script:
+    - export PATH=\"$PATH:$HOME/.dotnet/tools\"
+    - dotnet sonarscanner begin /k:"${CI_PROJECT_NAME}-${CI_COMMIT_BRANCH}" /d:sonar.login="${SONAR_TOKEN}" /d:sonar.host.url="${SONAR_HOST_URL}"
+    - dotnet build
+    - dotnet sonarscanner end /d:sonar.login="${SONAR_TOKEN}"
+  cache:
+    key: ${CI_JOB_NAME}
+    paths:
+      - .sonar/cache
+
+publish:
+  stage: publish
+  image: dotnet/sdk:6.0
+  needs:
+    - build
+  before_script:
+    - dotnet nuget disable source nuget.org
+    - dotnet nuget add source http://source.com.br/repository/nuget --name nuget-repository
+  script:
+    - dotnet publish -c release -o app
+  artifacts:
+    paths:
+      - app/
