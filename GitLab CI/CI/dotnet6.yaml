@@ -36,7 +36,7 @@ sonarqube:
     - dotnet nuget add source http://source.com.br/repository/nuget --name nuget-repository
   script:
     - export PATH=\"$PATH:$HOME/.dotnet/tools\"
-    - dotnet sonarscanner begin /k:"${CI_PROJECT_NAME}-${CI_COMMIT_BRANCH}" /d:sonar.login="${SONAR_TOKEN}" /d:sonar.host.url="${SONAR_HOST_URL}"
+    - dotnet sonarscanner begin /k:"${CI_PROJECT_NAME}-${CI_COMMIT_BRANCH}" /d:sonar.login="${SONAR_TOKEN}" /d:sonar.host.url="${SONAR_HOST_URL}" /d:sonar.branch.name="${CI_COMMIT_BRANCH}"
     - dotnet build
     - dotnet sonarscanner end /d:sonar.login="${SONAR_TOKEN}"
   cache:
