@@ -1,0 +1,44 @@
+stages:
+  - test
+
+unit-test:
+  stage: test
+  image: dotnet/sdk:6.0
+  allow_failure: true
+  before_script:
+    - pip install -i http://source-repository/python --trusted-host http://source-repository -r requirements.txt
+    - pip install -i http://source-repository/python --trusted-host http://source-repository pytest pylint pytest-cov
+  script:
+    - python -m pytest --cov-branch -cov=app tests/ --cov-report xml:coverage.xml --junitxml=report.xml
+    - pylint .console/**/*.py --exit-zero > pylint.txt
+  artifacts:
+    paths:
+      - coverage.xml
+      - pylint.txt
+    reports:
+      junit: report.xml
+
+sonarqube:
+  stage: test
+  image: sonarsource/sonar-scanner-cli:4
+  allow_failure: true
+  script:
+    - sonar-scannet
+      -Dsonar.coverage.exclusions=**__init__**,tests/**,config.py,manage.py
+      -Dsonar.exclusions=*.xml
+      -Dsonar.gitlab.commit_sha=$CI_COMMIT_SHA
+      -Dsonar.gitlab.project_id=$CI_PROJECT_ID
+      -Dsonar.gitlab.ref_name=$CI_COMMIT_REF_NAME
+      -Dsonar.gitlab.url=$CI_PROJECT_URL
+      -Dsonar.host.url=$SONAR_HOST_URL
+      -Dsonar.language=py
+      -Dsonar.login=$SONAR_TOKEN
+      -Dsonar.projectKey=${CI_PROJECT_NAME}-${CI_COMMIT_BRANCH}
+      -Dsonar.projectName=${CI_PROJECT_NAME}
+      -Dsonar.python.coverage.reportPaths=coverage.xml
+      -Dsonar.python.pylint.reportPAth=pylint.txt
+      -Dsonar.sources=.
+  cache:
+    key: ${CI_JOB_NAME}
+    paths:
+      - .sonar/cache
