@@ -1,6 +1,26 @@
 stages:
   - image
-  - deploy
+  - deploysamunas
+
+docker:
+  stage: image
+  image: docker
+  variables:
+    AWS_REGION: sa-east-1
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_DRIVER: overlay2
+    DOCKER_TLS_CERTDIR: ""
+  services:
+    - name: docker:19.03.1-dind
+      command: ["--insecure-registry=registry.domain.com"]
+  before_script:
+    - docker login -u $DOCKER_USER -p $DOCKER_PASSWORD "$REGISTRY_URL
+  script:
+    - docker build -t "path/project-name" .
+    - docker image tag "path/project-name" "$REGISTRY_URL/path/project-name:${TAG}"
+    - docker image push
+  after_script:
+    - docker logout $REGISTRY_UR
 
 kaniko:
   stage: image

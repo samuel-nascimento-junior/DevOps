@@ -1,0 +1,55 @@
+stages:
+  - image
+  - deploy
+
+docker:
+  stage: image
+  image: docker
+  variables:
+    AWS_REGION: sa-east-1
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_DRIVER: overlay2
+    DOCKER_TLS_CERTDIR: ""
+  services:
+    - name: docker:19.03.1-dind
+      command: ["--insecure-registry=registry.domain.com"]
+  before_script:
+    - aws --region $AWS_REGION ecr get-login-password | docker login --username AWS --password-stdin $REGISTRY_URL_AWS
+    - aws ecr describe-repositories --repository-names "path/project-name" || aws ecr create-repository -- repository-name "path/project-name"
+    - aws ecr set-repository-policy --repository-name "path/project-name" --policy-text file://$POLICY_CONTENT --region $AWS_REGION
+  script:
+    - docker build -t "path/project-name" .
+    - docker image tag "path/project-name" "$REGISTRY_URL_AWS/path/project-name:${TAG}"
+    - docker image push
+  after_script:
+    - docker logout $REGISTRY_URL_AWS
+
+kaniko:
+  stage: image
+  image: kaniko/executor:debug
+  before_script:
+    - mkdir -p /kaniko/.docker
+    - echo "{\"auths\":{\"REGISTRY_URL\":{\"auth\":\"$(printf "%s:%s" "${USER}" "${PASSWORD}" | base64 | tr -d '\n')\"}}}" > /kaniko/.docker/config.json
+  script:
+    - export IFS=''
+    - >-
+      /kaniko/executor
+      --context "${CI_PROJECT_DIR}"
+      --dockerfile "${CI_PROJECT_DIR}/Dockerfile"
+      --insecure
+      --insecure-pull
+      --destination "${REGISTRY_URL}/${PATH}/${PROJECT}:${TAG}"
+      --insecure-registry $REGISTRY_URL
+      --skip-tls-verify
+      --skip-tls-verify-pull
+      --skip-tls-verify-registry $REGISTRY_URL
+
+deploy:
+  stage: deploy
+  environment: Production
+  image: deployer:latest
+  needs:
+    - kaniko
+  before_script:
+    - helm repo add any-name
+    - helm upgrade $CI_PROJECT_NAME any-name/package-name --install --values helm-values.yaml --wait --atomic
